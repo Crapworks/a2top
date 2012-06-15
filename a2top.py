@@ -107,18 +107,111 @@ class ApacheStatus(object):
 
         return scoreboard
 
+class ApacheTopModule(object):
+    def __init__(self, scr):
+        self.scr = scr
+        self.last_draw = {}
+
+    def draw_header(self, stats):
+        pass
+
+    def draw_updateing(self, stats, id):
+        pass    
+
+    def draw(self, stats, id):
+        pass
+        
+class ApacheTopWidescreen(ApacheTopModule):
+    def draw_header(self):
+        self.offset = 4
+        self.scr.addstr(2, 7, "[ Scoreboard ]", curses.color_pair(1) | curses.A_BOLD)
+        self.scr.addstr(2, 97, "[ Server Status ]", curses.color_pair(1) | curses.A_BOLD)
+    
+    def draw_updateing(self, stats, id):
+        if not (id - 1) in self.last_draw.keys():
+            line = 0
+        else:
+            line = self.last_draw[(id - 1)]
+            
+        self.scr.addstr(line + self.offset, 7, "[ %s ] (updating...)" % (stats.host, ), curses.color_pair(4) | curses.A_BOLD)
+    
+    def draw(self, stats, id):
+        if not (id - 1) in self.last_draw.keys():
+            line = 0
+        else:
+            line = self.last_draw[(id - 1)]
+            
+        self.scr.addstr(line + self.offset, 7, "[ %s ]              " % (stats.host, ), curses.color_pair(4) | curses.A_BOLD)
+
+        # draw scoreboard stats
+        for num, item in enumerate(stats.scoreboard.keys()):
+            self.scr.addstr(line + self.offset + num + 2, 10, "%-40s : %-10s" % (item, stats.scoreboard[item]))
+            line_tmp = line + self.offset + num + 2
+
+        # draw (extended) infos
+        for num, item in enumerate(stats.infos.keys()):
+            self.scr.addstr(line + self.offset + num + 2, 100, "%-40s : %-10s" % (item, stats.infos[item]))
+
+        # draw worker graph
+        self.scr.addstr(line_tmp, 100, "[ ", curses.A_BOLD)
+
+        total_worker = sum(map(int, stats.scoreboard.values()))
+        unused_worker = int(stats.scoreboard['Open slot with no current process'])                    
+        prozent_free  = int((float(unused_worker) / float(total_worker)) * 100)
+
+        # draw used slots
+        self.scr.addstr(line_tmp, 102, "|" * (100 - prozent_free), curses.color_pair(3) | curses.A_BOLD)
+
+        # draw free slots
+        self.scr.addstr(line_tmp, 102 + (100 - prozent_free), "|" * prozent_free, curses.color_pair(2) | curses.A_BOLD)
+
+        self.scr.addstr(line_tmp, 202, " ]", curses.A_BOLD)
+        
+        self.last_draw[id] = line_tmp
+    
+
+class ApacheTopTabular(ApacheTopModule):
+    def draw_header(self):
+        self.offset = 3
+    
+    def draw_updateing(self, stats, id):
+        pass
+        
+    def draw(self, stats, id):
+        if not (id - 1) in self.last_draw.keys():
+            line = 0
+        else:
+            line = self.last_draw[(id - 1)]
+            
+        datasources = {}
+        datasources.update(stats.scoreboard)
+        datasources.update(stats.infos)
+        
+        max_width = len(max(datasources.keys(), key=len))
+        
+        self.scr.addstr(self.offset - 2, line + 3 + max_width + 3, "%-20s" % (stats.host.split('/')[2].split('.')[0], ) , curses.color_pair(2) | curses.A_BOLD)
+        for num, datasource in enumerate(datasources.keys()):
+            self.scr.addstr(num + self.offset, 3, "%s%s" % (datasource, " " * (max_width - len(datasource))) , curses.color_pair(1) | curses.A_BOLD)
+            self.scr.addstr(num + self.offset, line + 3 + max_width + 3, "%-20s" % (datasources[datasource], ) , curses.A_BOLD)
+        
+        self.last_draw[id] = line + max_width - 10
+
 class ApacheTop(object):
-    def __init__(self, hosts = ['http://localhost/server-status?auto'], interval = 1):
+    def __init__(self, hosts = ['http://localhost/server-status?auto'], mode = ApacheTopWidescreen, interval = 1):
         self.hosts = hosts
         self.interval = interval
-
+        self.modes = [ApacheTopTabular, ApacheTopWidescreen]
+        self.itermodes = iter(self.modes)
+        
         # fix curses / readline bug during window resize
         os.unsetenv('LINES')
         os.unsetenv('COLUMNS')
 
-        self.a2stat = [ ApacheStatus(host) for host in self.hosts ]
+        self.a2stat = [ ApacheStatus(host) for host in self.hosts ]        
         self.scr = curses.initscr()
         self.scr.nodelay(1)
+        
+        self.mode = mode(self.scr)
 
         curses.start_color()
         curses.curs_set(0)
@@ -131,49 +224,27 @@ class ApacheTop(object):
         self.exit = False
 
     def run(self):
-        offset = 4
-        self.scr.addstr(2, 7, "[ Scoreboard ]", curses.color_pair(1) | curses.A_BOLD)
-        self.scr.addstr(2, 97, "[ Server Status ]", curses.color_pair(1) | curses.A_BOLD)
+        self.mode.draw_header()
 
         while not self.exit:
             c = self.scr.getch()
-            if c == ord('q'): break
+            if c == ord('q'): break            
             if c == curses.KEY_RESIZE: self.scr.refresh()
-
-            next_host = line = 0
-            for stat in self.a2stat:
-                line = next_host
+            if c == ord('m'): 
+                self.scr.erase()                
+                
                 try:
-                    self.scr.addstr(line + offset, 7, "[ %s ] (updating...)" % (stat.host, ), curses.color_pair(4) | curses.A_BOLD)
-                    stat.update()
-
-                    self.scr.addstr(line + offset, 7, "[ %s ]              " % (stat.host, ), curses.color_pair(4) | curses.A_BOLD)
-
-                    # draw scoreboard stats
-                    for num, item in enumerate(stat.scoreboard.keys()):
-                        self.scr.addstr(line + offset + num + 2, 10, "%-40s : %-10s" % (item, stat.scoreboard[item]))
-                        next_host = line + offset + num + 2
-
-                    # draw (extended) infos
-                    for num, item in enumerate(stat.infos.keys()):
-                        self.scr.addstr(line + offset + num + 2, 100, "%-40s : %-10s" % (item, stat.infos[item]))
-
-                    # draw worker graph
-                    self.scr.addstr(next_host, 100, "[ ", curses.A_BOLD)
-
-                    total_worker = sum(map(int, stat.scoreboard.values()))
-                    unused_worker = int(stat.scoreboard['Open slot with no current process'])                    
-                    prozent_free  = int((float(unused_worker) / float(total_worker)) * 100)
-
-                    # draw used slots
-                    self.scr.addstr(next_host, 102, "|" * (100 - prozent_free), curses.color_pair(3) | curses.A_BOLD)
-
-                    # draw free slots
-                    self.scr.addstr(next_host, 102 + (100 - prozent_free), "|" * prozent_free, curses.color_pair(2) | curses.A_BOLD)
-
-                    self.scr.addstr(next_host, 202, " ]", curses.A_BOLD)
-                except:
-                    pass
+                    self.mode = self.itermodes.next()(self.scr)
+                except StopIteration:
+                    self.itermodes = iter(self.modes)
+                    self.mode = self.itermodes.next()(self.scr)
+                    
+                self.mode.draw_header()
+            
+            for id, stat in enumerate(self.a2stat):
+                self.mode.draw_updateing(stat, id)
+                stat.update()
+                self.mode.draw(stat, id)
 
             self.scr.refresh()                
             sleep(self.interval)
@@ -190,9 +261,17 @@ class ApacheTop(object):
 def main():
     parser = OptionParser(usage="usage: %s [options] http://host1/server-status?auto http://host2/server-status?auto ..." % (sys.argv[0], ))
     parser.add_option("-i", "--interval", action="store", type="int", dest="interval", default=1, help="interval for updateing server infos")
+    parser.add_option("-m", "--mode", action="store", type="string", dest="mode", default="Widescreen", help="use this drawing mode [Widescreen, Tabular]")
+    
     (options, args) = parser.parse_args(sys.argv[1:])
+    if options.mode.upper() == "WIDESCREEN":
+        options.mode = ApacheTopWidescreen
+    elif  options.mode.upper() == "TABULAR":
+        options.mode = ApacheTopTabular
+    else:
+        options.mode = ApacheTopWidescreen
 
-    a2top = ApacheTop(hosts=args, interval=options.interval)
+    a2top = ApacheTop(hosts=args, mode = options.mode, interval=options.interval)
     a2top.run()
 
 if __name__ == '__main__':
