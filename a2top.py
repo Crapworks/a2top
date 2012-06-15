@@ -209,8 +209,12 @@ class ApacheTopTabular(ApacheTopModule):
         
         self.scr.addstr(self.top_padding - 2 + (sources_num_lines * (self.line -1) + (5 * (self.line-1))), self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (stats.host.split('/')[2].split('.')[0], ) , curses.color_pair(2) | curses.A_BOLD)
         for num, datasource in enumerate(datasources.keys()):
+            if num % 2 == 0:
+                fmt = curses.A_BOLD
+            else:
+                fmt = curses.A_BOLD | curses.color_pair(5)
             self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding, "%s%s" % (datasource, " " * (sources_max_width - len(datasource))) , curses.color_pair(1) | curses.A_BOLD)             
-            self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (datasources[datasource], ) , curses.A_BOLD)
+            self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (datasources[datasource], ) , fmt)
         
         self.last_width[id] = width + self.col_width
 
@@ -236,6 +240,7 @@ class ApacheTop(object):
         curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
         curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)
         curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLUE)
 
         signal(SIGINT, self.cleanup)
         self.exit = False
