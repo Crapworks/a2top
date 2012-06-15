@@ -201,13 +201,14 @@ class ApacheTopTabular(ApacheTopModule):
         
         y, x = self.scr.getmaxyx()        
         
-        if x < ((width + 40) / self.line):
-            self.line += 1     
-            self.break_id = id
+        if x < ((width  / self.line) + 60):
+            self.line += 1
+            if self.break_id == 0:
+                self.break_id = id
         
         self.scr.addstr(self.top_padding - 2 + (sources_num_lines * (self.line -1) + (5 * (self.line-1))), self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (stats.host.split('/')[2].split('.')[0], ) , curses.color_pair(2) | curses.A_BOLD)
         for num, datasource in enumerate(datasources.keys()):
-            self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding, "%s%s" % (datasource, " " * (sources_max_width - len(datasource))) , curses.color_pair(1) | curses.A_BOLD) 
+            self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding, "%s%s" % (datasource, " " * (sources_max_width - len(datasource))) , curses.color_pair(1) | curses.A_BOLD)             
             self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (datasources[datasource], ) , curses.A_BOLD)
         
         self.last_width[id] = width + self.col_width
