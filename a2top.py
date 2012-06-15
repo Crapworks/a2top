@@ -172,29 +172,45 @@ class ApacheTopWidescreen(ApacheTopModule):
 
 class ApacheTopTabular(ApacheTopModule):
     def draw_header(self):
-        self.offset = 3
-    
+        self.top_padding = 3
+        self.left_padding = 3
+        self.col_width = 20
+        self.line = 1
+        self.last_width = {}
+        
     def draw_updateing(self, stats, id):
         pass
         
     def draw(self, stats, id):
-        if not (id - 1) in self.last_draw.keys():
-            line = 0
+        if not (id - 1) in self.last_width.keys():
+            width = 0
         else:
-            line = self.last_draw[(id - 1)]
-            
+            width = self.last_width[(id - 1)]
+        
+        if id == 0:
+            self.last_width = {}
+            self.line = 1
+            self.break_id = 0
+    
         datasources = {}
         datasources.update(stats.scoreboard)
         datasources.update(stats.infos)
         
-        max_width = len(max(datasources.keys(), key=len))
+        sources_max_width = len(max(datasources.keys(), key=len)) + 2
+        sources_num_lines = len(datasources.keys())
         
-        self.scr.addstr(self.offset - 2, line + 3 + max_width + 3, "%-20s" % (stats.host.split('/')[2].split('.')[0], ) , curses.color_pair(2) | curses.A_BOLD)
+        y, x = self.scr.getmaxyx()        
+        
+        if x < ((width + 40) / self.line):
+            self.line += 1     
+            self.break_id = id
+        
+        self.scr.addstr(self.top_padding - 2 + (sources_num_lines * (self.line -1) + (5 * (self.line-1))), self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (stats.host.split('/')[2].split('.')[0], ) , curses.color_pair(2) | curses.A_BOLD)
         for num, datasource in enumerate(datasources.keys()):
-            self.scr.addstr(num + self.offset, 3, "%s%s" % (datasource, " " * (max_width - len(datasource))) , curses.color_pair(1) | curses.A_BOLD)
-            self.scr.addstr(num + self.offset, line + 3 + max_width + 3, "%-20s" % (datasources[datasource], ) , curses.A_BOLD)
+            self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding, "%s%s" % (datasource, " " * (sources_max_width - len(datasource))) , curses.color_pair(1) | curses.A_BOLD) 
+            self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (datasources[datasource], ) , curses.A_BOLD)
         
-        self.last_draw[id] = line + max_width - 10
+        self.last_width[id] = width + self.col_width
 
 class ApacheTop(object):
     def __init__(self, hosts = ['http://localhost/server-status?auto'], mode = ApacheTopWidescreen, interval = 1):
