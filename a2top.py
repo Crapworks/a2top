@@ -10,11 +10,9 @@ from optparse import OptionParser
 from time import sleep
 from datetime import timedelta
 from urllib2 import urlopen
+from threading import Thread
 
-class ApacheStatus(object):
-    scoreboard = {}
-    infos = {}    
-
+class ApacheStatus(Thread):
     mapping = {
         "_":"Waiting for Connection",
         "S":"Starting up",
@@ -43,7 +41,10 @@ class ApacheStatus(object):
     ]
 
     def __init__(self, host):
+        Thread.__init__(self)
         self.host = host
+        self.scoreboard = {}
+        self.infos = {}    
         self.regexes = [ re.compile('%s: (?P<%s>.*)' % (key, key.replace(' ', '_'))) for key in self.info_keys ]
 
     def convert_bytes(self, bytes):
@@ -58,11 +59,11 @@ class ApacheStatus(object):
         else:
             return '%.2fb' % bytes
 
-    def update(self):
+    def run(self):
         try:
             con = urlopen("%s" % (self.host), timeout=1)
         except:
-            return None
+            return
 
         data = con.read()
 
@@ -224,7 +225,6 @@ class ApacheTop(object):
         os.unsetenv('LINES')
         os.unsetenv('COLUMNS')
 
-        self.a2stat = [ ApacheStatus(host) for host in self.hosts ]        
         self.scr = curses.initscr()
         self.scr.nodelay(1)
         
@@ -244,6 +244,8 @@ class ApacheTop(object):
         self.mode.draw_header()
 
         while not self.exit:
+            self.a2stat = [ ApacheStatus(host) for host in self.hosts ]
+            
             c = self.scr.getch()
             if c == ord('q'): break            
             if c == curses.KEY_RESIZE: self.scr.refresh()
@@ -258,10 +260,14 @@ class ApacheTop(object):
                     
                 self.mode.draw_header()
             
+            for stat in self.a2stat:     
+                stat.start()               
+                    
+            for stat in self.a2stat:                
+                stat.join()
+                
             for id, stat in enumerate(self.a2stat):
                 try:
-                    self.mode.draw_updateing(stat, id)
-                    stat.update()
                     self.mode.draw(stat, id)
                 except:
                     pass
