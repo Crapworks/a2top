@@ -13,7 +13,7 @@ from urllib2 import urlopen
 
 class ApacheStatus(object):
     scoreboard = {}
-    infos = {}
+    infos = {}    
 
     mapping = {
         "_":"Waiting for Connection",
@@ -149,12 +149,29 @@ class ApacheTop(object):
 
                     self.scr.addstr(line + offset, 7, "[ %s ]              " % (stat.host, ), curses.color_pair(4) | curses.A_BOLD)
 
+                    # draw scoreboard stats
                     for num, item in enumerate(stat.scoreboard.keys()):
                         self.scr.addstr(line + offset + num + 2, 10, "%-40s : %-10s" % (item, stat.scoreboard[item]))
                         next_host = line + offset + num + 2
 
+                    # draw (extended) infos
                     for num, item in enumerate(stat.infos.keys()):
                         self.scr.addstr(line + offset + num + 2, 100, "%-40s : %-10s" % (item, stat.infos[item]))
+
+                    # draw worker graph
+                    self.scr.addstr(next_host, 100, "[ ", curses.A_BOLD)
+
+                    total_worker = sum(map(int, stat.scoreboard.values()))
+                    unused_worker = int(stat.scoreboard['Open slot with no current process'])                    
+                    prozent_free  = int((float(unused_worker) / float(total_worker)) * 100)
+
+                    # draw used slots
+                    self.scr.addstr(next_host, 102, "|" * (100 - prozent_free), curses.color_pair(3) | curses.A_BOLD)
+
+                    # draw free slots
+                    self.scr.addstr(next_host, 102 + (100 - prozent_free), "|" * prozent_free, curses.color_pair(2) | curses.A_BOLD)
+
+                    self.scr.addstr(next_host, 202, " ]", curses.A_BOLD)
                 except:
                     pass
 
