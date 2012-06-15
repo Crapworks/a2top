@@ -242,9 +242,12 @@ class ApacheTop(object):
                 self.mode.draw_header()
             
             for id, stat in enumerate(self.a2stat):
-                self.mode.draw_updateing(stat, id)
-                stat.update()
-                self.mode.draw(stat, id)
+                try:
+                    self.mode.draw_updateing(stat, id)
+                    stat.update()
+                    self.mode.draw(stat, id)
+                except:
+                    pass
 
             self.scr.refresh()                
             sleep(self.interval)
