@@ -1,12 +1,11 @@
 #!/usr/bin/python
 
 import curses
-import sys
 import re
 import os
+import argparse
 
 from signal import signal, SIGINT
-from optparse import OptionParser
 from time import sleep
 from datetime import timedelta
 from urllib2 import urlopen
@@ -44,12 +43,12 @@ class ApacheStatus(Thread):
         Thread.__init__(self)
         self.host = host
         self.scoreboard = {}
-        self.infos = {}    
+        self.infos = {}
         self.regexes = [ re.compile('%s: (?P<%s>.*)' % (key, key.replace(' ', '_'))) for key in self.info_keys ]
 
     def convert_bytes(self, bytes):
         if bytes >= 1099511627776:
-            return '%.2fT' % (bytes / 1099511627776, ) 
+            return '%.2fT' % (bytes / 1099511627776, )
         elif bytes >= 1073741824:
             return '%.2fG' % (bytes / 1073741824, )
         elif bytes >= 1048576:
@@ -80,13 +79,13 @@ class ApacheStatus(Thread):
             self.infos['Uptime'] = timedelta(seconds=int(self.infos['Uptime']))
 
         if 'Total_kBytes' in self.infos.keys():
-            self.infos['Total_kBytes'] = self.convert_bytes(float(self.infos['Total_kBytes']) * 1024)          
+            self.infos['Total_kBytes'] = self.convert_bytes(float(self.infos['Total_kBytes']) * 1024)
 
         if 'BytesPerSec' in self.infos.keys():
-            self.infos['BytesPerSec'] = self.convert_bytes(float(self.infos['BytesPerSec']))          
+            self.infos['BytesPerSec'] = self.convert_bytes(float(self.infos['BytesPerSec']))
 
         if 'BytesPerReq' in self.infos.keys():
-            self.infos['BytesPerReq'] = self.convert_bytes(float(self.infos['BytesPerReq']))          
+            self.infos['BytesPerReq'] = self.convert_bytes(float(self.infos['BytesPerReq']))
 
     def parse_scoreboard(self, sb):
         scoreboard = {
@@ -117,31 +116,31 @@ class ApacheTopModule(object):
         pass
 
     def draw_updateing(self, stats, id):
-        pass    
+        pass
 
     def draw(self, stats, id):
         pass
-        
+
 class ApacheTopWidescreen(ApacheTopModule):
     def draw_header(self):
         self.offset = 4
         self.scr.addstr(2, 7, "[ Scoreboard ]", curses.color_pair(1) | curses.A_BOLD)
         self.scr.addstr(2, 97, "[ Server Status ]", curses.color_pair(1) | curses.A_BOLD)
-    
+
     def draw_updateing(self, stats, id):
         if not (id - 1) in self.last_draw.keys():
             line = 0
         else:
             line = self.last_draw[(id - 1)]
-            
+
         self.scr.addstr(line + self.offset, 7, "[ %s ] (updating...)" % (stats.host, ), curses.color_pair(4) | curses.A_BOLD)
-    
+
     def draw(self, stats, id):
         if not (id - 1) in self.last_draw.keys():
             line = 0
         else:
             line = self.last_draw[(id - 1)]
-            
+
         self.scr.addstr(line + self.offset, 7, "[ %s ]              " % (stats.host, ), curses.color_pair(4) | curses.A_BOLD)
 
         # draw scoreboard stats
@@ -157,7 +156,7 @@ class ApacheTopWidescreen(ApacheTopModule):
         self.scr.addstr(line_tmp, 100, "[ ", curses.A_BOLD)
 
         total_worker = sum(map(int, stats.scoreboard.values()))
-        unused_worker = int(stats.scoreboard['Open slot with no current process'])                    
+        unused_worker = int(stats.scoreboard['Open slot with no current process'])
         prozent_free  = int((float(unused_worker) / float(total_worker)) * 100)
 
         # draw used slots
@@ -167,9 +166,9 @@ class ApacheTopWidescreen(ApacheTopModule):
         self.scr.addstr(line_tmp, 102 + (100 - prozent_free), "|" * prozent_free, curses.color_pair(2) | curses.A_BOLD)
 
         self.scr.addstr(line_tmp, 202, " ]", curses.A_BOLD)
-        
+
         self.last_draw[id] = line_tmp
-    
+
 
 class ApacheTopTabular(ApacheTopModule):
     def draw_header(self):
@@ -178,44 +177,44 @@ class ApacheTopTabular(ApacheTopModule):
         self.col_width = 20
         self.line = 1
         self.last_width = {}
-        
+
     def draw_updateing(self, stats, id):
         pass
-        
+
     def draw(self, stats, id):
         if not (id - 1) in self.last_width.keys():
             width = 0
         else:
             width = self.last_width[(id - 1)]
-        
+
         if id == 0:
             self.last_width = {}
             self.line = 1
             self.break_id = 0
-    
+
         datasources = {}
         datasources.update(stats.scoreboard)
         datasources.update(stats.infos)
-        
+
         sources_max_width = len(max(datasources.keys(), key=len)) + 2
         sources_num_lines = len(datasources.keys())
-        
-        y, x = self.scr.getmaxyx()        
-        
+
+        y, x = self.scr.getmaxyx()
+
         if x < ((width  / self.line) + 60):
             self.line += 1
             if self.break_id == 0:
                 self.break_id = id
-        
+
         self.scr.addstr(self.top_padding - 2 + (sources_num_lines * (self.line -1) + (5 * (self.line-1))), self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (stats.host.split('/')[2].split('.')[0], ) , curses.color_pair(2) | curses.A_BOLD)
         for num, datasource in enumerate(datasources.keys()):
             if num % 2 == 0:
                 fmt = curses.A_BOLD
             else:
                 fmt = curses.A_BOLD | curses.color_pair(5)
-            self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding, "%s%s" % (datasource, " " * (sources_max_width - len(datasource))) , curses.color_pair(1) | curses.A_BOLD)             
+            self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding, "%s%s" % (datasource, " " * (sources_max_width - len(datasource))) , curses.color_pair(1) | curses.A_BOLD)
             self.scr.addstr(num + self.top_padding + (sources_num_lines * (self.line -1) + (5 * (self.line-1))),  self.left_padding + width - ((self.col_width * self.break_id) * (self.line - 1)) + sources_max_width, "%-20s" % (datasources[datasource], ) , fmt)
-        
+
         self.last_width[id] = width + self.col_width
 
 class ApacheTop(object):
@@ -224,14 +223,14 @@ class ApacheTop(object):
         self.interval = interval
         self.modes = [ApacheTopTabular, ApacheTopWidescreen]
         self.itermodes = iter(self.modes)
-        
+
         # fix curses / readline bug during window resize
         os.unsetenv('LINES')
         os.unsetenv('COLUMNS')
 
         self.scr = curses.initscr()
         self.scr.nodelay(1)
-        
+
         self.mode = mode(self.scr)
 
         curses.start_color()
@@ -250,59 +249,60 @@ class ApacheTop(object):
 
         while not self.exit:
             self.a2stat = [ ApacheStatus(host) for host in self.hosts ]
-            
+
             c = self.scr.getch()
-            if c == ord('q'): break            
+            if c == ord('q'): break
             if c == curses.KEY_RESIZE: self.scr.refresh()
-            if c == ord('m'): 
-                self.scr.erase()                
-                
+            if c == ord('m'):
+                self.scr.erase()
+
                 try:
                     self.mode = self.itermodes.next()(self.scr)
                 except StopIteration:
                     self.itermodes = iter(self.modes)
                     self.mode = self.itermodes.next()(self.scr)
-                    
+
                 self.mode.draw_header()
-            
-            for stat in self.a2stat:     
-                stat.start()               
-                    
-            for stat in self.a2stat:                
+
+            for stat in self.a2stat:
+                stat.start()
+
+            for stat in self.a2stat:
                 stat.join()
-                
+
             for id, stat in enumerate(self.a2stat):
                 try:
                     self.mode.draw(stat, id)
                 except:
                     pass
 
-            self.scr.refresh()                
+            self.scr.refresh()
             sleep(self.interval)
 
         self.cleanup(None, None)
 
     def cleanup(self, signum, frame):
-        curses.nocbreak(); 
-        self.scr.keypad(0); 
+        curses.nocbreak();
+        self.scr.keypad(0);
         curses.echo()
         curses.endwin()
         self.exit = True
 
 def main():
-    parser = OptionParser(usage="usage: %s [options] http://host1/server-status?auto http://host2/server-status?auto ..." % (sys.argv[0], ))
-    parser.add_option("-i", "--interval", action="store", type="int", dest="interval", default=1, help="interval for updateing server infos")
-    parser.add_option("-m", "--mode", action="store", type="string", dest="mode", default="Widescreen", help="use this drawing mode [Widescreen, Tabular]")
-    
-    (options, args) = parser.parse_args(sys.argv[1:])
-    if options.mode.upper() == "WIDESCREEN":
-        options.mode = ApacheTopWidescreen
-    elif  options.mode.upper() == "TABULAR":
-        options.mode = ApacheTopTabular
-    else:
-        options.mode = ApacheTopWidescreen
+    parser = argparse.ArgumentParser(description="Show Apache2 server statistics via mod_status", epilog="EXAMPLE: a2top http://example.com/server-status?auto")
+    parser.add_argument("hosts", help="apache server to check", type=str, nargs="+")
+    parser.add_argument("-i", "--interval", help="interval for updateing server infos", default=1, type=int)
+    parser.add_argument("-m", "--mode", help="use this drawing mode", choices=["Widescreen", "Tabular"], default="Widescreen")
 
-    a2top = ApacheTop(hosts=args, mode = options.mode, interval=options.interval)
+    args = parser.parse_args()
+    if args.mode.upper() == "WIDESCREEN":
+        args.mode = ApacheTopWidescreen
+    elif  args.mode.upper() == "TABULAR":
+        args.mode = ApacheTopTabular
+    else:
+        args.mode = ApacheTopWidescreen
+
+    a2top = ApacheTop(hosts=args.hosts, mode = args.mode, interval=args.interval)
     a2top.run()
 
 if __name__ == '__main__':
